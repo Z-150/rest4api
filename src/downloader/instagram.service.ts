@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { CommandCache } from '../utils/cache.util';
 
 const execAsync = promisify(exec);
 
@@ -13,14 +14,28 @@ const execAsync = promisify(exec);
 export class InstagramService {
   private readonly logger = new Logger(InstagramService.name);
 
-  private async runCommand(cmd: string): Promise<string> {
-    this.logger.debug(`Instagram CMD: ${cmd}`);
+  private async runCommand(rawCmd: string): Promise<string> {
+    // Inject fast flags untuk yt-dlp
+    let cmd = rawCmd;
+    if (cmd.startsWith('yt-dlp ') && !cmd.includes('--socket-timeout')) {
+      cmd = cmd.replace('yt-dlp ', 'yt-dlp --no-warnings --no-check-certificates --socket-timeout 5 --no-mtime ');
+    }
+
+    const cached = CommandCache.get(cmd);
+    if (cached) {
+      this.logger.debug(`[CACHE HIT] Instagram CMD: ${cmd.substring(0, 120)}`);
+      return cached;
+    }
+
+    this.logger.debug(`[EXEC] Instagram CMD: ${cmd.substring(0, 120)}`);
     try {
       const { stdout, stderr } = await execAsync(cmd, {
         timeout: 90_000,
         maxBuffer: 20 * 1024 * 1024,
       });
-      return stdout.trim();
+      const out = stdout.trim();
+      CommandCache.set(cmd, out);
+      return out;
     } catch (err: any) {
       const msg = err.stderr ?? err.message ?? '';
       this.logger.error(`Instagram cmd failed: ${msg}`);

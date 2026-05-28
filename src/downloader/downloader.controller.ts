@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Delete,
   Body,
   Param,
   HttpCode,
@@ -52,25 +51,24 @@ export class DownloaderController {
       uptime: process.uptime(),
       version: '1.0.0',
       endpoints: [
-        { method: 'GET',    path: '/api/health',                  desc: 'Health check' },
-        { method: 'GET',    path: '/api/sites',                   desc: 'Daftar situs yang didukung' },
-        { method: 'POST',   path: '/api/extract',                 desc: 'Universal video downloader' },
-        { method: 'POST',   path: '/api/extract/info',            desc: 'Metadata saja' },
-        { method: 'POST',   path: '/api/extract/audio',           desc: 'Audio/MP3 CDN link' },
-        { method: 'POST',   path: '/api/instagram',               desc: 'Instagram post/reels/stories' },
-        { method: 'POST',   path: '/api/spotify',                 desc: 'Spotify info' },
-        { method: 'POST',   path: '/api/spotify/download',        desc: 'Spotify → MP3 download' },
-        { method: 'POST',   path: '/api/tiktok',                  desc: 'TikTok tanpa watermark' },
-        { method: 'POST',   path: '/api/twitter',                 desc: 'Twitter/X video & GIF' },
-        { method: 'POST',   path: '/api/facebook',                desc: 'Facebook video publik' },
-        { method: 'POST',   path: '/api/soundcloud',              desc: 'SoundCloud → MP3' },
-        { method: 'POST',   path: '/api/thumbnail',               desc: 'Ambil thumbnail saja' },
-        { method: 'POST',   path: '/api/youtube/search',          desc: 'Cari YouTube → CDN link top 1' },
-        { method: 'POST',   path: '/api/youtube/playlist',        desc: 'Ekstrak semua video playlist' },
-        { method: 'POST',   path: '/api/youtube/subtitles',       desc: 'Download subtitle/caption' },
-        { method: 'POST',   path: '/api/batch',                   desc: 'Proses banyak URL sekaligus (max 10)' },
-        { method: 'GET',    path: '/api/downloads',               desc: 'List file yang sudah didownload' },
-        { method: 'DELETE', path: '/api/downloads/:folder/:file', desc: 'Hapus file download' },
+        { method: 'GET',    path: '/api/health',             desc: 'Health check' },
+        { method: 'GET',    path: '/api/sites',              desc: 'Daftar situs yang didukung' },
+        { method: 'POST',   path: '/api/extract',            desc: 'Universal video downloader' },
+        { method: 'POST',   path: '/api/extract/info',       desc: 'Metadata saja' },
+        { method: 'POST',   path: '/api/extract/audio',      desc: 'Audio/MP3 CDN link' },
+        { method: 'POST',   path: '/api/instagram',          desc: 'Instagram post/reels/stories' },
+        { method: 'POST',   path: '/api/spotify',            desc: 'Spotify info' },
+        { method: 'POST',   path: '/api/spotify/download',   desc: 'Spotify → MP3 download' },
+        { method: 'POST',   path: '/api/tiktok',             desc: 'TikTok tanpa watermark' },
+        { method: 'POST',   path: '/api/twitter',            desc: 'Twitter/X video & GIF' },
+        { method: 'POST',   path: '/api/facebook',           desc: 'Facebook video publik' },
+        { method: 'POST',   path: '/api/soundcloud',         desc: 'SoundCloud → MP3' },
+        { method: 'POST',   path: '/api/thumbnail',          desc: 'Ambil thumbnail saja' },
+        { method: 'POST',   path: '/api/youtube/search',     desc: 'Cari YouTube → CDN link top 1' },
+        { method: 'POST',   path: '/api/youtube/playlist',   desc: 'Ekstrak semua video playlist' },
+        { method: 'POST',   path: '/api/youtube/subtitles',  desc: 'Download subtitle/caption' },
+        { method: 'POST',   path: '/api/batch',              desc: 'Proses banyak URL sekaligus (max 10)' },
+        { method: 'GET',    path: '/api/downloads',          desc: 'List file yang sudah didownload' },
       ],
     };
   }
@@ -219,15 +217,5 @@ export class DownloaderController {
   listDownloads() {
     this.logger.log('GET /api/downloads');
     return this.platformsService.listDownloads();
-  }
-
-  @Delete('downloads/:folder/:filename')
-  @HttpCode(HttpStatus.OK)
-  deleteDownload(
-    @Param('folder') folder: string,
-    @Param('filename') filename: string,
-  ) {
-    this.logger.log(`DELETE /api/downloads/${folder}/${filename}`);
-    return this.platformsService.deleteDownload(folder, filename);
   }
 }

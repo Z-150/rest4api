@@ -9,6 +9,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { CommandCache } from '../utils/cache.util';
 
 const execAsync = promisify(exec);
 
@@ -17,13 +18,21 @@ export class SpotifyService {
   private readonly logger = new Logger(SpotifyService.name);
 
   private async runCommand(cmd: string): Promise<string> {
-    this.logger.debug(`Spotify CMD: ${cmd}`);
+    const cached = CommandCache.get(cmd);
+    if (cached) {
+      this.logger.debug(`[CACHE HIT] Spotify CMD: ${cmd.substring(0, 120)}`);
+      return cached;
+    }
+
+    this.logger.debug(`[EXEC] Spotify CMD: ${cmd.substring(0, 120)}`);
     try {
       const { stdout, stderr } = await execAsync(cmd, {
         timeout: 300_000, // 5 menit (konversi audio bisa lama)
         maxBuffer: 50 * 1024 * 1024,
       });
-      return (stdout + '\n' + stderr).trim();
+      const out = (stdout + '\n' + stderr).trim();
+      CommandCache.set(cmd, out);
+      return out;
     } catch (err: any) {
       const msg = err.stderr ?? err.stdout ?? err.message ?? '';
       this.logger.error(`Spotify cmd failed: ${msg}`);

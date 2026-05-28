@@ -405,7 +405,6 @@ body.light .jb{color:#cf222e}
   <a class="sidebar-link" onclick="go('ep-thumbnail')"><span class="mb mb-post">POST</span>/thumbnail</a>
   <a class="sidebar-link" onclick="go('ep-batch')"><span class="mb mb-post">POST</span>/batch</a>
   <a class="sidebar-link" onclick="go('ep-dl-list')"><span class="mb mb-get">GET</span>/downloads</a>
-  <a class="sidebar-link" onclick="go('ep-dl-del')"><span class="mb mb-del">DEL</span>/downloads/:f/:n</a>
 </nav>
 
 <!-- HISTORY PANEL -->
@@ -436,6 +435,10 @@ body.light .jb{color:#cf222e}
     <span class="chip"><span class="chip-dot" style="background:#ff7b72"></span>FFmpeg</span>
     <span class="chip"><span class="chip-dot" style="background:#3fb950"></span>TypeScript</span>
   </div>
+  <a href="https://github.com/Z-150/rest4api" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);color:var(--text);text-decoration:none;padding:10px 18px;border-radius:24px;font-weight:600;font-size:13px;margin-bottom:28px;transition:all 0.2s;box-shadow:0 4px 12px rgba(0,0,0,0.2)" onmouseover="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform='translateY(0)'">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+    Star us on GitHub ⭐️
+  </a>
   <div class="hero-url" id="hUrl">
     <span class="lbl">Base URL</span>
     <code>http://localhost:3000</code>
@@ -906,31 +909,6 @@ curl -X POST http://localhost:3000/api/youtube/search \
   </div>
 </section>
 
-<!-- DOWNLOADS DELETE -->
-<section class="section" id="ep-dl-del">
-  <div class="sec-eye">Utilities</div><h2 class="sec-title">Delete Download</h2>
-  <div class="ep-card" id="c-dld">
-    <div class="ep-head" onclick="tog('c-dld')">
-      <span class="ep-method method-del">DELETE</span><span class="ep-path">/api/downloads/:folder/:filename</span>
-      <span class="ep-desc">Hapus file dari folder downloads</span>
-      <svg class="ep-chev" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
-    </div>
-    <div class="ep-body">
-      <div class="tabs"><button class="tab active" onclick="st(this,'dld-p')">Params</button><button class="tab" onclick="st(this,'dld-t')">Try It</button></div>
-      <div class="tab-panel active" id="dld-p"><table class="pt"><thead><tr><th>Param</th><th>Type</th><th>Desc</th></tr></thead><tbody>
-        <tr><td class="pn">:folder</td><td class="pt-type">string</td><td>Nama subfolder (cth: <code>spotify</code>)</td></tr>
-        <tr><td class="pn">:filename</td><td class="pt-type">string</td><td>Nama file yang ingin dihapus</td></tr>
-      </tbody></table></div>
-      <div class="tab-panel" id="dld-t"><div class="try-form">
-        <div class="fg"><label class="flabel">Folder</label><input class="finput" id="dld-folder" type="text" placeholder="spotify"/></div>
-        <div class="fg"><label class="flabel">Filename</label><input class="finput" id="dld-file" type="text" placeholder="Artist - Title.mp3"/></div>
-        <button class="send-btn" style="background:var(--delete);color:#fff" id="btn-dld" onclick="sendDelete()">🗑 Delete</button>
-        <div class="res-box" id="res-dld"></div>
-      </div></div>
-    </div>
-  </div>
-</section>
-
 <footer>
   <span>MediaDL API v1.0.0 · 19 Endpoints · NestJS + yt-dlp + instaloader + spotdl</span>
   <span style="display:flex;gap:14px">
@@ -1012,8 +990,8 @@ ScrollTrigger.create({
     allSections.forEach(s=>{ if(s.getBoundingClientRect().top<=90) cur=s.id; });
     allLinks.forEach(l=>{
       l.classList.remove('active');
-      const txt = l.textContent.toLowerCase().replace(/\s/g,'');
-      if (cur && txt.includes(cur.replace('ep-','').replace(/-/g,'/'))) l.classList.add('active');
+      const onclickAttr = l.getAttribute('onclick') || '';
+      if (cur && onclickAttr.includes("'" + cur + "'")) l.classList.add('active');
     });
   }
 });
@@ -1170,14 +1148,6 @@ function sendBatch(){
   const urls=raw.split('\n').map(s=>s.trim()).filter(Boolean);
   const format=v('batch-fmt');
   req('btn-batch','POST','http://localhost:3000/api/batch',{urls,format},'res-batch');
-}
-
-// ── DELETE ──
-function sendDelete(){
-  const folder=v('dld-folder');
-  const filename=v('dld-file');
-  if(!folder||!filename){toast('Isi folder dan filename dulu','⚠️');return;}
-  req('btn-dld','DELETE',`http://localhost:3000/api/downloads/${encodeURIComponent(folder)}/${encodeURIComponent(filename)}`,null,'res-dld');
 }
 
 // ── THEME ──

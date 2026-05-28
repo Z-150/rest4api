@@ -9,6 +9,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as play from 'play-dl';
+import { CommandCache } from '../utils/cache.util';
 
 const execAsync = promisify(exec);
 
@@ -17,14 +19,28 @@ export class PlatformsService {
   private readonly logger = new Logger(PlatformsService.name);
   private readonly downloadsDir = path.join(process.cwd(), 'downloads');
 
-  private async run(cmd: string, timeoutMs = 120_000): Promise<string> {
-    this.logger.debug(`CMD: ${cmd.substring(0, 120)}`);
+  private async run(rawCmd: string, timeoutMs = 120_000): Promise<string> {
+    // Inject fast flags untuk yt-dlp
+    let cmd = rawCmd;
+    if (cmd.startsWith('yt-dlp ') && !cmd.includes('--socket-timeout')) {
+      cmd = cmd.replace('yt-dlp ', 'yt-dlp --no-warnings --no-check-certificates --socket-timeout 5 --no-mtime ');
+    }
+
+    const cached = CommandCache.get(cmd);
+    if (cached) {
+      this.logger.debug(`[CACHE HIT] ${cmd.substring(0, 120)}`);
+      return cached;
+    }
+
+    this.logger.debug(`[EXEC] ${cmd.substring(0, 120)}`);
     try {
       const { stdout, stderr } = await execAsync(cmd, {
         timeout: timeoutMs,
         maxBuffer: 50 * 1024 * 1024,
       });
-      return stdout.trim();
+      const out = stdout.trim();
+      CommandCache.set(cmd, out);
+      return out;
     } catch (err: any) {
       const msg = (err.stderr ?? err.stdout ?? err.message ?? '').split('\n')[0];
       this.logger.error(`CMD failed: ${msg}`);
@@ -211,6 +227,30 @@ export class PlatformsService {
       throw new BadRequestException('URL harus berupa playlist YouTube (mengandung list=...)');
     }
 
+    try {
+      const playlist = await play.playlist_info(url, { incomplete: true });
+      const videos = await playlist.all_videos();
+      const items = videos.map(v => ({
+        id: v.id,
+        title: v.title,
+        url: v.url,
+        duration: v.durationInSec,
+        uploader: v.channel?.name,
+        thumbnail: v.thumbnails?.[0]?.url ?? `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
+      }));
+
+      return {
+        success: true,
+        platform: 'youtube',
+        playlist_url: url,
+        title: playlist.title,
+        total: items.length,
+        items,
+      };
+    } catch (err: any) {
+      this.logger.error(`play-dl playlist error: ${err.message}`);
+    }
+
     // Ambil hanya metadata ringan (--flat-playlist = tidak proses tiap video)
     const raw = await this.run(
       `yt-dlp --flat-playlist -j "${url}" 2>&1`,
@@ -329,7 +369,64 @@ export class PlatformsService {
       throw new BadRequestException('Query pencarian minimal 2 karakter');
     }
 
-    // ytsearch1: = ambil top 1 hasil
+    try {
+      const searchResults = await play.search(query, { limit: 1 });
+      if (!searchResults || searchResults.length === 0) {
+        throw new NotFoundException('Video tidak ditemukan');
+      }
+      
+      const videoUrl = searchResults[0].url;
+      const info = await play.video_info(videoUrl);
+      const details = info.video_details;
+      
+      const cdnUrls = [];
+      if (format === 'mp3') {
+         const audioFormat = info.format.find(f => !f.hasVideo && f.hasAudio) || info.format.find(f => f.hasAudio);
+         if (audioFormat) cdnUrls.push({ type: 'audio', url: audioFormat.url, ext: audioFormat.container });
+      } else {
+         const videos = info.format.filter(f => f.hasVideo);
+         let videoFormat;
+         if (quality === '1080') videoFormat = videos.find(f => f.qualityLabel?.includes('1080')) || videos[0];
+         else if (quality === '720') videoFormat = videos.find(f => f.qualityLabel?.includes('720')) || videos[0];
+         else if (quality === '480') videoFormat = videos.find(f => f.qualityLabel?.includes('480')) || videos[0];
+         else if (quality === 'worst') videoFormat = videos[videos.length - 1];
+         else videoFormat = videos[0]; // best is usually first
+         
+         if (videoFormat) cdnUrls.push({ type: 'video', url: videoFormat.url, ext: videoFormat.container, resolution: videoFormat.qualityLabel });
+         
+         if (videoFormat && !videoFormat.hasAudio) {
+           const audioFormat = info.format.find(f => !f.hasVideo && f.hasAudio);
+           if (audioFormat) cdnUrls.push({ type: 'audio', url: audioFormat.url, ext: audioFormat.container });
+         }
+      }
+
+      return {
+        success: true,
+        platform: 'youtube',
+        query,
+        format,
+        quality,
+        result: {
+          id: details.id,
+          title: details.title,
+          uploader: details.channel?.name,
+          duration: details.durationInSec,
+          duration_string: details.durationRaw,
+          view_count: details.views,
+          upload_date: details.uploadedAt,
+          thumbnail: details.thumbnails?.[details.thumbnails.length - 1]?.url,
+          webpage_url: videoUrl,
+          cdn_urls: cdnUrls,
+        },
+        note: cdnUrls.length > 1
+          ? 'Stream terpisah. Gabungkan: ffmpeg -i [video_url] -i [audio_url] -c copy output.mp4'
+          : 'CDN link siap digunakan.',
+      };
+    } catch (err: any) {
+      this.logger.error(`play-dl search error: ${err.message}`);
+    }
+
+    // fallback to yt-dlp
     const searchUrl = `ytsearch1:${query}`;
 
     let fmtSelector: string;

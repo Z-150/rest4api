@@ -8,6 +8,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as play from 'play-dl';
+import { CommandCache } from '../utils/cache.util';
 
 const execAsync = promisify(exec);
 
@@ -16,10 +18,23 @@ export class DownloaderService {
   private readonly logger = new Logger(DownloaderService.name);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Helper: Jalankan perintah CLI
+  // Helper: Jalankan perintah CLI dengan Caching
   // ─────────────────────────────────────────────────────────────────────────────
-  private async runCommand(command: string): Promise<string> {
-    this.logger.debug(`Executing: ${command}`);
+  private async runCommand(rawCommand: string): Promise<string> {
+    // Inject fast flags untuk yt-dlp
+    let command = rawCommand;
+    if (command.startsWith('yt-dlp ') && !command.includes('--socket-timeout')) {
+      command = command.replace('yt-dlp ', 'yt-dlp --no-warnings --no-check-certificates --socket-timeout 5 --no-mtime ');
+    }
+
+    // Cek Cache
+    const cached = CommandCache.get(command);
+    if (cached) {
+      this.logger.debug(`[CACHE HIT] ${command.substring(0, 120)}`);
+      return cached;
+    }
+
+    this.logger.debug(`[EXEC] ${command.substring(0, 120)}`);
     try {
       const { stdout, stderr } = await execAsync(command, {
         timeout: 120_000, // 2 menit
@@ -28,7 +43,12 @@ export class DownloaderService {
       if (stderr && !stdout) {
         this.logger.warn(`stderr output: ${stderr.substring(0, 300)}`);
       }
-      return stdout.trim();
+      const out = stdout.trim();
+      
+      // Simpan ke Cache jika sukses
+      CommandCache.set(command, out);
+      
+      return out;
     } catch (err: any) {
       this.logger.error(`Command failed: ${err.message}`);
       throw new InternalServerErrorException(
@@ -59,6 +79,43 @@ export class DownloaderService {
   // GET INFO / METADATA saja (tanpa download) — menggunakan yt-dlp -j
   // ─────────────────────────────────────────────────────────────────────────────
   async getInfo(url: string): Promise<any> {
+    const platform = this.detectPlatform(url);
+    if (platform === 'youtube') {
+      try {
+        const info = await play.video_info(url);
+        const details = info.video_details;
+        return {
+          success: true,
+          platform: 'youtube',
+          id: details.id,
+          title: details.title,
+          description: details.description,
+          duration: details.durationInSec,
+          duration_string: details.durationRaw,
+          uploader: details.channel?.name,
+          uploader_url: details.channel?.url,
+          upload_date: details.uploadedAt,
+          view_count: details.views,
+          like_count: details.likes,
+          thumbnail: details.thumbnails?.[details.thumbnails.length - 1]?.url,
+          formats: info.format.map(f => ({
+            format_id: f.itag?.toString(),
+            ext: f.container,
+            quality: f.qualityLabel,
+            resolution: f.qualityLabel,
+            filesize: f.contentLength,
+            vcodec: f.videoCodec,
+            acodec: f.audioCodec,
+            url: f.url,
+          })),
+          webpage_url: url,
+        };
+      } catch (err: any) {
+        this.logger.error(`play-dl getInfo error: ${err.message}`);
+        // Fallback to yt-dlp if play-dl fails
+      }
+    }
+
     const cmd = `yt-dlp --no-playlist -j "${url}"`;
     const raw = await this.runCommand(cmd);
 
@@ -101,6 +158,50 @@ export class DownloaderService {
   // EXTRACT VIDEO CDN LINK — menggunakan yt-dlp -g
   // ─────────────────────────────────────────────────────────────────────────────
   async extractVideo(url: string, quality: string = 'best'): Promise<any> {
+    const platform = this.detectPlatform(url);
+    
+    if (platform === 'youtube') {
+      try {
+        const info = await play.video_info(url);
+        const details = info.video_details;
+        const cdnUrls = [];
+        
+        // Find best video
+        const videos = info.format.filter(f => f.hasVideo);
+        let videoFormat;
+        if (quality === '1080') videoFormat = videos.find(f => f.qualityLabel?.includes('1080')) || videos[0];
+        else if (quality === '720') videoFormat = videos.find(f => f.qualityLabel?.includes('720')) || videos[0];
+        else if (quality === '480') videoFormat = videos.find(f => f.qualityLabel?.includes('480')) || videos[0];
+        else if (quality === 'worst') videoFormat = videos[videos.length - 1];
+        else videoFormat = videos[0]; // best is usually first
+        
+        if (videoFormat) cdnUrls.push({ type: 'video', url: videoFormat.url, ext: videoFormat.container, resolution: videoFormat.qualityLabel });
+        
+        // Find best audio if video format doesn't have audio
+        if (videoFormat && !videoFormat.hasAudio) {
+          const audioFormat = info.format.find(f => !f.hasVideo && f.hasAudio);
+          if (audioFormat) cdnUrls.push({ type: 'audio', url: audioFormat.url, ext: audioFormat.container });
+        }
+
+        return {
+          success: true,
+          platform: 'youtube',
+          id: details.id,
+          title: details.title,
+          duration: details.durationInSec,
+          duration_string: details.durationRaw,
+          thumbnail: details.thumbnails?.[details.thumbnails.length - 1]?.url,
+          uploader: details.channel?.name,
+          view_count: details.views,
+          cdn_urls: cdnUrls,
+          webpage_url: url,
+          note: cdnUrls.length > 1 ? 'Stream video dan audio terpisah. Gunakan ffmpeg untuk menggabungkan.' : 'Link siap digunakan langsung.',
+        };
+      } catch (err: any) {
+        this.logger.error(`play-dl extractVideo error: ${err.message}`);
+      }
+    }
+
     // Format selector: video dan audio terpisah agar bisa digabung ffmpeg
     let formatSelector: string;
     switch (quality) {
@@ -165,6 +266,35 @@ export class DownloaderService {
   // EXTRACT AUDIO (MP3) CDN LINK — format audio only
   // ─────────────────────────────────────────────────────────────────────────────
   async extractAudio(url: string, audioQuality: string = '192'): Promise<any> {
+    const platform = this.detectPlatform(url);
+    if (platform === 'youtube') {
+      try {
+        const info = await play.video_info(url);
+        const details = info.video_details;
+        
+        const audioFormat = info.format.find(f => !f.hasVideo && f.hasAudio) || info.format.find(f => f.hasAudio);
+        if (audioFormat) {
+          return {
+            success: true,
+            platform: 'youtube',
+            id: details.id,
+            title: details.title,
+            duration: details.durationInSec,
+            duration_string: details.durationRaw,
+            thumbnail: details.thumbnails?.[details.thumbnails.length - 1]?.url,
+            uploader: details.channel?.name,
+            cdn_url: audioFormat.url,
+            ext: audioFormat.container,
+            audio_quality: audioQuality + 'kbps',
+            mime_type: 'audio/' + audioFormat.container,
+            note: 'Gunakan ffmpeg untuk convert ke mp3: ffmpeg -i [cdn_url] -q:a 0 output.mp3',
+          };
+        }
+      } catch (err: any) {
+        this.logger.error(`play-dl extractAudio error: ${err.message}`);
+      }
+    }
+
     const infoRaw = await this.runCommand(
       `yt-dlp --no-playlist -j -f "bestaudio[ext=m4a]/bestaudio" "${url}"`,
     );
