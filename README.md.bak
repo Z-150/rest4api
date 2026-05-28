@@ -1,0 +1,211 @@
+# 🚀 Media Downloader & CDN Extractor API
+
+REST API untuk mengambil link CDN langsung dari video, audio, dan gambar dari berbagai platform (TikTok, Instagram, YouTube, Spotify, dll).
+
+Proyek ini menggunakan alat tangguh berbasis Command Line (CLI):
+- **yt-dlp**: Untuk YouTube, TikTok, dan ratusan situs lainnya.
+- **instaloader**: Spesialis untuk Instagram (Reels, Post, Story).
+- **spotdl**: Spesialis untuk Spotify (konversi ke MP3 beserta metadata).
+
+---
+
+## 📋 Persyaratan Sistem (Wajib)
+
+Sebelum mulai, pastikan komputer/server Anda telah menginstal perangkat lunak berikut:
+
+1. **Python 3.8+** (Wajib untuk menjalankan yt-dlp, instaloader, dan spotdl)
+2. **Node.js 18+** atau **Python 3.8+** (Tergantung bahasa yang Anda gunakan untuk membuat kode API-nya)
+3. **FFmpeg** (Sangat penting! Digunakan untuk menggabungkan video & audio, serta konversi format menjadi mp3/mp4 yang sesuai)
+
+---
+
+## 🛠️ Langkah-langkah Instalasi (Lengkap & Terperinci)
+
+Ikuti langkah-langkah ini secara berurutan agar proyek dapat berjalan dari awal tanpa error.
+
+### Langkah 1: Instal FFmpeg (Wajib)
+FFmpeg dibutuhkan untuk memproses audio dan video di belakang layar.
+
+* **Windows**:
+  1. Unduh FFmpeg dari [gyan.dev](https://www.gyan.dev/ffmpeg/builds/)
+  2. Ekstrak file zip, lalu tambahkan folder `bin` ke System Path / Environment Variables.
+  3. Buka CMD/Terminal baru dan ketik `ffmpeg -version` untuk memastikan berhasil.
+* **Ubuntu / Debian (Linux)**:
+  ```bash
+  sudo apt update
+  sudo apt install -y ffmpeg
+  ```
+* **macOS**:
+  ```bash
+  brew install ffmpeg
+  ```
+
+### Langkah 2: Instal Engine Utama (yt-dlp, instaloader, spotdl)
+Buka terminal/CMD Anda, lalu jalankan perintah pip berikut untuk menginstal alat-alat inti secara global agar bisa dipanggil oleh API:
+
+```bash
+# Pastikan pip sudah terinstal
+pip3 install -U yt-dlp instaloader spotdl
+```
+*(Catatan: Jika Anda menggunakan Windows, Anda bisa menggunakan `pip install -U ...` tanpa angka 3)*
+
+### Langkah 3: Persiapan Proyek (Setup)
+
+**1. Kloning atau Buat Folder Proyek**
+```bash
+git clone https://github.com/username/repo-api-anda.git
+cd repo-api-anda
+```
+
+**2. Instal Dependensi API**
+Pilih salah satu sesuai bahasa yang Anda gunakan untuk membuat server REST API:
+
+**Jika menggunakan Node.js (Express/Fastify):**
+```bash
+# Inisialisasi package.json (jika belum ada)
+npm init -y
+
+# Instal framework API (misal Express)
+npm install express cors dotenv
+
+# Instal nodemon untuk development (opsional)
+npm install --save-dev nodemon
+```
+
+**Jika menggunakan Python (FastAPI/Flask):**
+```bash
+# Buat virtual environment (Direkomendasikan)
+python -m venv venv
+
+# Aktifkan virtual environment
+# Windows:
+venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+# Instal FastAPI dan server Uvicorn
+pip install fastapi uvicorn
+```
+
+### Langkah 4: Konfigurasi Environment (.env)
+Buat file bernama `.env` di direktori utama proyek, dan isi dengan konfigurasi berikut (sesuaikan jika perlu):
+
+```env
+PORT=3000
+NODE_ENV=development
+# Opsional: Jika Anda menggunakan proxy untuk menghindari blokir IP dari sosmed
+# PROXY_URL=http://user:pass@ip:port
+```
+
+---
+
+## 🚀 Cara Menjalankan Server API
+
+Pilih perintah sesuai dengan bahasa pemrograman yang Anda gunakan:
+
+### Untuk Node.js
+Tambahkan script ini di `package.json` Anda:
+```json
+"scripts": {
+  "start": "node index.js",
+  "dev": "nodemon index.js"
+}
+```
+Lalu jalankan server di terminal:
+```bash
+# Mode Development (Server otomatis restart jika ada perubahan kode)
+npm run dev
+
+# Mode Production
+npm start
+```
+
+### Untuk Python (FastAPI)
+Jika file utama Anda bernama `main.py`:
+```bash
+# Mode Development (reload otomatis)
+uvicorn main:app --reload --port 3000
+```
+
+Server Anda sekarang berjalan di: **`http://localhost:3000`** 🎉
+
+---
+
+## 🧪 Cara Menguji API (Endpoint Testing)
+
+Anda dapat menguji API yang sudah berjalan menggunakan **cURL** di terminal, **Postman**, atau **Insomnia**. Berikut adalah contoh JSON request-nya.
+
+### 1. Endpoint: Universal Downloader (YouTube, TikTok, dll)
+**Request (cURL):**
+```bash
+curl -X POST http://localhost:3000/api/extract \
+-H "Content-Type: application/json" \
+-d '{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "format": "mp4"
+}'
+```
+
+### 2. Endpoint: Instagram Downloader
+**Request (cURL):**
+```bash
+curl -X POST http://localhost:3000/api/instagram \
+-H "Content-Type: application/json" \
+-d '{
+  "url": "https://www.instagram.com/p/C-xxxxxxxxx/",
+  "type": "all"
+}'
+```
+
+### 3. Endpoint: Spotify Downloader
+**Request (cURL):**
+```bash
+curl -X POST http://localhost:3000/api/spotify \
+-H "Content-Type: application/json" \
+-d '{
+  "url": "https://open.spotify.com/track/4PTG3Z6ehGkBF2zI7Yg5xH"
+}'
+```
+
+---
+
+## ⚠️ Troubleshooting (Solusi Masalah Umum)
+
+Jika Anda mengalami kendala saat menjalankan proyek, periksa hal-hal berikut:
+
+1. **Error "ffmpeg: command not found" atau Kualitas Video/Audio Jelek (Tidak ada suara)**
+   * **Penyebab**: FFmpeg belum terinstal atau belum masuk ke System Path.
+   * **Solusi**: Ulangi Langkah 1. Pastikan Anda bisa menjalankan perintah `ffmpeg` secara langsung di terminal tanpa error.
+2. **Error "yt-dlp is not recognized as an internal or external command"**
+   * **Penyebab**: Modul Python CLI tidak dikenali secara global oleh sistem.
+   * **Solusi**: Pastikan Anda telah menjalankan Langkah 2. Di Windows, pastikan folder `Scripts` pada instalasi Python Anda telah dimasukkan ke System Environment Variables (Path).
+3. **Instagram Gagal Mengambil Data (429 Too Many Requests / Login Required)**
+   * **Penyebab**: Instagram sangat ketat dan memblokir IP server Anda, atau mewajibkan login untuk melihat postingan.
+   * **Solusi**: Anda perlu menambahkan cookie sesi (session cookies) ke dalam perintah `instaloader`, atau merutekan koneksi melalui server proxy (Residential Proxy disarankan).
+4. **Download Spotify Lama atau Timeout**
+   * **Penyebab**: `spotdl` berkerja dengan cara mencari kecocokan lagu di YouTube Music lalu mengunduhnya. Jika koneksi lambat, request API bisa *timeout*.
+   * **Solusi**: Pertimbangkan untuk menjalankan proses download di *background job* dan gunakan Webhook/WebSocket untuk memberitahu user saat MP3 selesai diproses.
+
+---
+
+## 💡 Tips Tambahan untuk Coder (Integrasi ke Backend)
+Untuk mendapatkan link CDN asli (JSON output) dari alat-alat ini di dalam kode backend Anda (contoh Node.js), Anda dapat mengeksekusi mereka menggunakan `child_process`. Contoh dasar:
+
+```javascript
+const { exec } = require('child_process');
+
+// Mengeksekusi yt-dlp secara terprogram untuk mengambil JSON info
+// Gunakan opsi -j (dump json)
+exec('yt-dlp -j https://youtu.be/dQw4w9WgXcQ', (error, stdout, stderr) => {
+    if (error) {
+        console.error(`Gagal: ${error.message}`);
+        return;
+    }
+    
+    // Parse output JSON dari yt-dlp
+    const videoData = JSON.parse(stdout);
+    
+    console.log("Judul:", videoData.title);
+    console.log("Link CDN Langsung (Bisa ditaruh di tag <video>):", videoData.url);
+});
+```
